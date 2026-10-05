@@ -1,108 +1,142 @@
-# Projeto de Bloco - TP1
+# Projeto de Bloco - TP2
 
-Projeto desenvolvido por Junior, Matheus e Paulo para a disciplina Projeto de Bloco, do bloco Análise e Segurança de Agentes de IA (Instituto Infnet).
+Projeto desenvolvido por Junior, Matheus e Paulo para a disciplina Projeto de Bloco do curso de Análise e Segurança de Agentes de IA do Instituto Infnet.
 
-## Objetivo do projeto
+## Objetivo
 
-Construir a base de um sistema de atendimento ao cliente capaz de identificar a intenção da mensagem do usuário. Neste TP1, a entrega cobre:
+O projeto utiliza o [Customer Support Ticket Dataset](https://www.kaggle.com/datasets/suraj520/customer-support-ticket-dataset) como base para um sistema de atendimento ao cliente. A variável `Ticket Type` representa a intenção do usuário e `Ticket Description` é o texto usado como entrada.
 
-- a análise exploratória inicial do **Customer Support Ticket Dataset** ([Kaggle](https://www.kaggle.com/datasets/suraj520/customer-support-ticket-dataset)), com **`Ticket Type` definida como variável alvo** do projeto;
-- a estrutura base da API em **FastAPI**, com autenticação **JWT** funcional e a rota de predição protegida.
-
-O modelo de machine learning ainda não faz parte desta etapa: a rota `POST /predict` retorna uma intenção pré-determinada que simula a saída do modelo que será implementado nas próximas etapas.
+O TP2 reúne a análise exploratória completa dos dados e uma API FastAPI com persistência em SQLite, autenticação JWT, controle de acesso por proprietário, validação de entrada, rate limiting e headers HTTP de segurança.
 
 ## Estrutura
 
 ```text
-data/       Dataset utilizado no projeto (customer_support_tickets.csv)
-eda/        Notebook com a análise exploratória (customer_support_tickets_eda.ipynb)
-fastapi/    Código-fonte da API
-  main.py       Ponto de entrada da aplicação
-  routes/       Um endpoint por arquivo (health, autenticacao, predicao)
-  models/       Modelos Pydantic de entrada e saída
-  security/     Geração e validação de JWT, OAuth2PasswordBearer
-others/     DFD da API em formato PNG (dfd_api.png) e fonte editável (dfd_api.drawio)
+data/                         Dataset em CSV
+eda/                          Notebook com o EDA completo
+fastapi/
+  main.py                     Entrada da aplicação
+  database.db                 Banco SQLite com dados de exemplo
+  sqlite_database.py          Criação e população do banco
+  models/                     Modelos Pydantic e SQLModel
+  routes/                     Rotas da API
+  security/                   JWT, senhas e rate limiting
+others/                       DFD da API
+tests/                        Testes automatizados
+zap/                          Relatório e análise do scan passivo
 ```
 
 ## Instalação
 
-Requer **Python 3.11 ou superior**.
+Requer Python 3.11 ou superior.
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Dependências da API:
+No Windows, a ativação do ambiente é feita com:
+
+```powershell
+.venv\Scripts\activate
+```
+
+## Configuração da chave JWT
+
+A chave de assinatura não fica armazenada no código. Antes de iniciar a API, defina `JWT_SECRET` com pelo menos 32 caracteres:
 
 ```bash
-pip install -r fastapi/requirements.txt
+export JWT_SECRET="uma-chave-local-com-pelo-menos-32-caracteres"
 ```
 
-O arquivo instala `fastapi`, `uvicorn`, `PyJWT` (biblioteca de JWT, instalada à parte do FastAPI) e `python-multipart` (necessário para o formulário do OAuth2).
+Em PowerShell:
 
-Dependências do notebook de EDA:
-
-```bash
-pip install "pandas>=3.0" matplotlib seaborn notebook
+```powershell
+$env:JWT_SECRET="uma-chave-local-com-pelo-menos-32-caracteres"
 ```
 
-O `pandas >= 3.0` é obrigatório: o notebook utiliza o dtype `str` e `select_dtypes(include="str")`, introduzidos no pandas 3 (testado com pandas 3.0.2, matplotlib 3.10 e seaborn 0.13).
+O arquivo `.env.example` mostra o nome esperado da variável. Quando ela não é definida, a aplicação gera uma chave temporária válida somente durante o processo atual.
 
-## Execução da API
+## Banco de dados
+
+O repositório já contém `fastapi/database.db`. Para recriar o banco e popular os dados de exemplo:
 
 ```bash
 cd fastapi
+python sqlite_database.py --recriar
+```
+
+O banco contém dois usuários e predictions pertencentes a proprietários diferentes. As senhas são armazenadas com PBKDF2-SHA256.
+
+| Usuário | Senha |
+| --- | --- |
+| `admin` | `infnet` |
+| `usuario2` | `teste123` |
+
+O script de criação usa `sqlite3`, conforme solicitado. As consultas feitas pelas rotas usam SQLModel.
+
+## Execução da API
+
+Dentro de `fastapi/`, execute:
+
+```bash
 uvicorn main:app --reload
 ```
 
-A documentação interativa (Swagger) estará disponível em `http://127.0.0.1:8000/docs`.
+A documentação interativa fica disponível em `http://127.0.0.1:8000/docs`.
 
-### Rotas
+### Rotas principais
 
-| Rota | Método | Proteção | Descrição |
-| ---- | ------ | -------- | --------- |
-| `/health` | GET | Nenhuma | Verifica se a API está ativa (`{"status": "ok"}`) |
-| `/auth/token` | POST | Credenciais | Autentica o usuário e retorna um token JWT |
-| `/predict` | POST | Token JWT | Recebe um texto e retorna a intenção simulada |
+| Método | Rota | Proteção | Finalidade |
+| --- | --- | --- | --- |
+| GET | `/health` | Pública | Verifica se a API está ativa |
+| POST | `/auth/token` | Credenciais | Retorna um token JWT |
+| POST | `/predict` | Bearer token | Cria uma prediction para o usuário autenticado |
+| GET | `/predictions/{id}` | Bearer token e ownership | Retorna apenas recursos do próprio usuário |
 
-### Credenciais de laboratório
+O endpoint de autenticação aceita no máximo dez requisições por minuto por cliente.
 
-Único usuário com acesso à API, definido in-code conforme o enunciado:
+## Controles de segurança
 
-| Usuário | Senha    |
-| ------- | -------- |
-| `admin` | `infnet` |
+- autenticação com OAuth2 Password Bearer e JWT com expiração;
+- senhas armazenadas com salt e PBKDF2-SHA256;
+- validação Pydantic com `extra="forbid"`;
+- consultas da API com SQLModel;
+- verificação de ownership contra BOLA;
+- CORS limitado às origens locais configuradas;
+- HSTS, X-Frame-Options, X-Content-Type-Options e Content-Security-Policy;
+- rate limiting de 10 requisições por minuto em `/auth/token`;
+- foreign keys habilitadas nas conexões SQLite.
 
-### Testando a autenticação
+## Testes
 
-No Swagger, execute `POST /auth/token` com as credenciais acima (ou use o botão **Authorize**). O token retornado é um JWT assinado com HS256, com os campos `sub` (usuário) e `exp` (expiração em 30 minutos). Em seguida, chame `POST /predict` com um corpo como:
+Na raiz do projeto, execute:
 
-```json
-{
-  "texto": "Quero cancelar minha compra"
-}
+```bash
+pytest -q
 ```
 
-Sem token (ou com token inválido/expirado) a rota responde `401`; campos extras no corpo são rejeitados com `422` (`extra="forbid"` no modelo de entrada).
+Os testes usam um banco temporário e cobrem:
 
-## Execução do notebook de EDA
+- tentativa de acessar `/predict` sem token;
+- tentativa de acessar uma prediction de outro usuário;
+- envio de campo extra no corpo da requisição.
+
+## EDA
+
+Para abrir o notebook:
 
 ```bash
 cd eda
 jupyter notebook customer_support_tickets_eda.ipynb
 ```
 
-O notebook lê o dataset por caminho relativo (`../data/`), portanto deve ser executado a partir da pasta `eda/`. Ele cobre: compreensão do problema (com a justificativa da variável alvo), inspeção inicial, verificação da qualidade, limpeza e preparação, análise univariada e as hipóteses sobre as intenções dos usuários.
+O notebook contém inspeção, qualidade, limpeza, análises univariada e multivariada, correlações, associações categóricas, outliers, dois testes de hipótese Mann-Whitney e conclusões.
+
+## OWASP ZAP
+
+Os artefatos do scan passivo ficam em `zap/`. O primeiro scan encontrou quatro findings Medium na documentação Swagger. Todos foram corrigidos e o scan final terminou sem findings Medium ou High. O arquivo `scan_passivo_zap.md` registra os findings, as correções e a validação.
 
 ## DFD
 
-O diagrama de fluxo de dados da API está em `others/dfd_api.png`, com as entradas, saídas e trust boundary identificadas e a tríade CIA aplicada a cada componente. O arquivo `others/dfd_api.drawio` é a fonte editável (draw.io / diagrams.net).
-
-## Observações de segurança
-
-Este projeto tem finalidade didática. Para os exercícios, existem simplificações que não devem ser usadas em produção: credenciais e chave JWT definidas no código-fonte, senha sem hash e ausência de TLS. Em uma aplicação real, senhas seriam armazenadas como hash, a chave JWT viria de variável de ambiente ou gerenciador de secrets e o tráfego usaria HTTPS.
-
-## Tecnologias
-
-Python, FastAPI, Pydantic, OAuth2, JWT (PyJWT), Uvicorn, pandas, matplotlib, seaborn.
+O diagrama de fluxo de dados está em `others/dfd_api.png`. O arquivo editável `others/dfd_api.drawio` também foi mantido no repositório.

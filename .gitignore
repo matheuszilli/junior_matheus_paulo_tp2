@@ -2,10 +2,15 @@
 __pycache__/
 *.py[cod]
 .venv/
+venv/
+**/venv/
+.pytest_cache/
+**/__pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Ambiente e sistema operacional
 .env
+.idea/
 .DS_Store
