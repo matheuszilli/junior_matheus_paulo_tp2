@@ -109,7 +109,7 @@ def documentacao():
     nonce = secrets.token_urlsafe(24)
     versao_swagger = "5.33.1"
     integridade_script = (
-        "sha384-ZPehFMQommnnuaZ4rpxgkgTT2DKFVp4hZC/7pLit+9Lek9T1YGSo23eHFbvNkX"
+        "sha384-ZPehFMQommnnuaZ4rpxgkgTT2DKFVp4hZC/7pLit+9Lek9T1YGSo23eHFbvNkXkw"
     )
     integridade_estilo = (
         "sha384-Ov4/wv3j2bmct8cDc5X4ngJZohVPzEmc6uDPH8WeljUxO5vtoykvMEfbu9Vh6RaW"

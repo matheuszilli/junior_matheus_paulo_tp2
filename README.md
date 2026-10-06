@@ -32,7 +32,7 @@ Requer Python 3.11 ou superior.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r fastapi/requirements.txt -r eda/requirements.txt
 ```
 
 No Windows, a ativação do ambiente é feita com:
